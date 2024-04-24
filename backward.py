@@ -5,7 +5,7 @@ from protocol.msg import MotionServoCmd
 class BackwardController(Node):
     def __init__(self, name):
         super().__init__(name)
-        self.speed_x, self.speed_y, self.speed_z = 0.0, 0.0, 0.0
+        self.speed_x, self.speed_y, self.speed_z = -0.5, 0.0, 0.0
         self.dog_name = "cyberdog"
         self.pub = self.create_publisher(MotionServoCmd, f"/{self.dog_name}/motion_servo_cmd", 10)
         self.timer = self.create_timer(0.1, self.timer_callback)

@@ -1,63 +1,61 @@
+import sys
+sys.path.append("/home/mi/workplace/src/learning/learning")
+
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Range
+from protocol.msg import MotionServoCmd
 from ultrasonic import UltrasonicSensor
-from backward import BackwardController
-from forward import ForwardController
-from rotate import RotateController
-from step import StepController
+from sensor_msgs.msg import Range
+#from step import StepController
 
-class ObstacleAvoidanceNode(Node):
-    def __init__(self):
-        super().__init__('obstacle_avoidance_node')
-        self.declare_parameter('dog_name', 'cyberdog')
-        dog_name = self.get_parameter('dog_name').get_parameter_value().string_value
+#from backward import BackwardController
+#from ultrasonic import UltrasonicSensor
+#from rotate import RotateController
+
+class Walk(Node):
+    def __init__(self, name):
+        super().__init__(name)
+        self.dog_name = "cyberdog"
+        self.ultra_sen = UltrasonicSensor(self.dog_name)
+        self.speed_x, self.speed_y, self.speed_z = 0.3, 0.0, 0.0
+        self.timer = self.create_timer(0.1, self.timer_callback)
+        self.pub = self.create_publisher(MotionServoCmd, f"/{self.dog_name}/motion_servo_cmd", 10)
+        #self.backward_ctlr = BackwardController()
         
-        # 初始化各个控制器
-        self.backward_ctrl = BackwardController()
-        self.forward_ctrl = ForwardController()
-        self.rotate_ctrl = RotateController()
-        self.step_ctrl = StepController()
+        #self.step_ctlr = StepController()
+        #self.rotate_ctlr = RotateController()
+        #self.ultrasonic_sen = UltrasonicSensor()
+        self.dist = 0.0
+        self.sub = self.create_subscription(Range, f'/{self.dog_name}/ultrasonic_payload', self.sub_callback, 10)
 
-        # 初始化超声波传感器
-        self.ultrasonic_sensor = UltrasonicSensor(self)
+    def sub_callback(self, msg:Range):
+        self.dist = msg.range
 
-        # 订阅超声波数据
-        self.subscription = self.create_subscription(
-            Range,
-            f'/{dog_name}/ultrasonic_payload',
-            self.ultrasonic_callback,
-            10)
-        self.subscription  # prevent unused variable warning
+    def timer_callback(self):
+        print(self.dist)
+        if(self.dist > 0.9):
+            self.speed_x = 0.2
+            self.speed_z = 0.0
+        else:
+            self.speed_x = 0.0
+            self.speed_z = -0.6
 
-        # 设置初始状态
-        self.stand_ctrl.execute()
+        msg = MotionServoCmd()
+        msg.motion_id = 303
+        msg.cmd_type = 1
+        msg.value = 2
+        msg.vel_des = [self.speed_x, self.speed_y, self.speed_z]
+        msg.step_height = [0.02, 0.02]
+        self.pub.publish(msg)
 
-    def ultrasonic_callback(self, msg):
-        distance = msg.data  # 获取超声波测得的距离
+        
 
-        if distance < 0.5:  # 若距离过近，执行紧急停止并坐下
-            self.stop_all()
-            self.sit_ctrl.execute(12)
-        elif distance < 1.0:  # 若距离适中，尝试后退并旋转避开障碍物
-            self.backward_ctrl.execute()
-            self.rotate_ctrl.execute(90)  # 旋转90度以避开障碍物
-        else:  # 距离足够远时，继续前进或行走
-            self.forward_ctrl.execute()
-            self.step_ctrl.execute()
 
-    def stop_all(self):
-        self.backward_ctrl.stop()
-        self.forward_ctrl.stop()
-        self.rotate_ctrl.stop()
-        self.sit_ctrl.stop()
-        self.stand_ctrl.stop()
-        self.step_ctrl.stop()
-
-def main(args=None):
-    rclpy.init(args=args)
-    obstacle_avoidance_node = ObstacleAvoidanceNode()
-    rclpy.spin(obstacle_avoidance_node)
+def main(args = None):
+    rclpy.init(args = args)
+    node = Walk("move_the_dog")
+    rclpy.spin(node)
+    node.destroy_node()
     rclpy.shutdown()
 
 if __name__ == '__main__':
